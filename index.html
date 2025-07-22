@@ -1,144 +1,208 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Jogo da Bolinha</title>
+  <meta charset="UTF-8" />
+  <title>Jogo da Bolinha do Noah 🎮</title>
   <style>
-    body {
+    * { box-sizing: border-box; }
+    body, html {
       margin: 0;
+      padding: 0;
+      background: #111;
       overflow: hidden;
-      background-color: #222;
       font-family: Arial, sans-serif;
+      color: #fff;
     }
-
-    #gameCanvas {
+    canvas {
       display: block;
-      background-color: #111;
-      margin: 0 auto;
+      margin: auto;
+      background: #222;
     }
-
-    #info {
+    #overlay {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      color: #fff;
-      font-size: 18px;
-      z-index: 10;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0,0,0,0.7);
+      flex-direction: column;
     }
-
-    #titulo {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      color: #fff;
-      font-size: 20px;
-      font-weight: bold;
-      z-index: 10;
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
+  <div id="overlay">
+    <h1>Jogo da Bolinha do Noah 🎮</h1>
+    <input id="playerName" placeholder="Digite seu nome" style="padding:8px; font-size:16px;" />
+    <button onclick="startGame()">Iniciar</button>
+  </div>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-<canvas id="gameCanvas" width="400" height="600"></canvas>
-<div id="info">
-  Pontuação: <span id="score">0</span><br>
-  Recorde: <span id="recorde">0</span>
-</div>
-<div id="titulo">Jogo da Bolinha</div>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let balls = [], bricks = [], score = 0, lives = 3, level = 1, player = "";
+    let paddle, isGameOver = false;
 
-<script>
-  const canvas = document.getElementById("gameCanvas");
-  const ctx = canvas.getContext("2d");
-
-  // Barra
-  const paddleWidth = 80;
-  const paddleHeight = 10;
-  let paddleX = (canvas.width - paddleWidth) / 2;
-
-  // Bolinha
-  let ballX = canvas.width / 2;
-  let ballY = canvas.height / 2;
-  const ballRadius = 8;
-  let ballSpeedX = 3;
-  let ballSpeedY = -3;
-
-  // Pontuação
-  let score = 0;
-  let recorde = parseInt(localStorage.getItem("recorde")) || 0;
-  document.getElementById("recorde").textContent = recorde;
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Bolinha
-    ctx.beginPath();
-    ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
-    ctx.fillStyle = "#ff4444";
-    ctx.fill();
-    ctx.closePath();
-
-    // Barra
-    ctx.fillStyle = "#00bfff";
-    ctx.fillRect(paddleX, canvas.height - paddleHeight - 10, paddleWidth, paddleHeight);
-
-    // Movimento
-    ballX += ballSpeedX;
-    ballY += ballSpeedY;
-
-    // Colisão parede
-    if (ballX + ballRadius > canvas.width || ballX - ballRadius < 0) {
-      ballSpeedX *= -1;
-    }
-    if (ballY - ballRadius < 0) {
-      ballSpeedY *= -1;
+    function startGame() {
+      player = document.getElementById('playerName').value || "Jogador";
+      document.getElementById('overlay').style.display = 'none';
+      initGame();
     }
 
-    // Colisão com barra
-    if (
-      ballY + ballRadius >= canvas.height - paddleHeight - 10 &&
-      ballX >= paddleX &&
-      ballX <= paddleX + paddleWidth
-    ) {
-      ballSpeedY *= -1;
-      score++;
-      document.getElementById("score").textContent = score;
+    function initGame() {
+      balls = [{ x: 400, y: 300, dx: 2, dy: -2, radius: 8 }];
+      paddle = { x: 350, y: 580, width: 100, height: 10 };
+      score = 0;
+      lives = 3;
+      level = 1;
+      isGameOver = false;
+      generateBricks();
+      requestAnimationFrame(draw);
+    }
 
-      if (score > recorde) {
-        recorde = score;
-        localStorage.setItem("recorde", recorde);
-        document.getElementById("recorde").textContent = recorde;
+    function generateBricks() {
+      bricks = [];
+      const rows = level + 2;
+      const cols = 8;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          bricks.push({
+            x: 100 + c * 75,
+            y: 50 + r * 30,
+            width: 60,
+            height: 20,
+            destroyed: false
+          });
+        }
       }
     }
 
-    // Fim de jogo
-    if (ballY + ballRadius > canvas.height) {
-      alert(`Game Over!\nPontuação: ${score}\nRecorde: ${recorde}`);
-      document.location.reload();
+    function drawBricks() {
+      for (let b of bricks) {
+        if (!b.destroyed) {
+          ctx.fillStyle = "#0ff";
+          ctx.fillRect(b.x, b.y, b.width, b.height);
+        }
+      }
     }
 
-    requestAnimationFrame(draw);
-  }
+    function drawPaddle() {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+    }
 
-  // Mouse
-  document.addEventListener("mousemove", (e) => {
-    const rect = canvas.getBoundingClientRect();
-    paddleX = e.clientX - rect.left - paddleWidth / 2;
-  });
+    function drawBalls() {
+      ctx.fillStyle = "#f00";
+      for (let ball of balls) {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
-  // Toque (celular)
-  document.addEventListener("touchmove", (e) => {
-    const rect = canvas.getBoundingClientRect();
-    paddleX = e.touches[0].clientX - rect.left - paddleWidth / 2;
-  });
+    function drawHUD() {
+      ctx.fillStyle = "#fff";
+      ctx.fillText(`Nome: ${player}`, 10, 20);
+      ctx.fillText(`Score: ${score}`, 10, 40);
+      ctx.fillText(`Vidas: ${lives}`, 10, 60);
+      ctx.fillText(`Fase: ${level}`, 10, 80);
+    }
 
-  // Impede sair da tela
-  setInterval(() => {
-    if (paddleX < 0) paddleX = 0;
-    if (paddleX + paddleWidth > canvas.width) paddleX = canvas.width - paddleWidth;
-  }, 10);
+    function collisionDetection() {
+      for (let ball of balls) {
+        for (let b of bricks) {
+          if (!b.destroyed &&
+            ball.x > b.x && ball.x < b.x + b.width &&
+            ball.y > b.y && ball.y < b.y + b.height) {
+              ball.dy = -ball.dy;
+              b.destroyed = true;
+              score += 10;
+              if (Math.random() < 0.2) {
+                balls.push({ x: ball.x, y: ball.y, dx: -ball.dx, dy: ball.dy, radius: 8 });
+              }
+          }
+        }
+      }
+    }
 
-  draw();
-</script>
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBricks();
+      drawPaddle();
+      drawBalls();
+      drawHUD();
+      collisionDetection();
 
+      for (let ball of balls) {
+        ball.x += ball.dx * (1 + level * 0.3);
+        ball.y += ball.dy * (1 + level * 0.3);
+
+        if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx *= -1;
+        if (ball.y - ball.radius < 0) ball.dy *= -1;
+
+        if (ball.y + ball.radius > paddle.y &&
+            ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
+          ball.dy *= -1;
+        }
+
+        if (ball.y - ball.radius > canvas.height) {
+          balls.splice(balls.indexOf(ball), 1);
+        }
+      }
+
+      if (balls.length === 0) {
+        lives--;
+        if (lives > 0) {
+          balls.push({ x: 400, y: 300, dx: 2, dy: -2, radius: 8 });
+        } else {
+          isGameOver = true;
+        }
+      }
+
+      if (!bricks.some(b => !b.destroyed)) {
+        level++;
+        if (level <= 3) {
+          generateBricks();
+          balls = [{ x: 400, y: 300, dx: 2, dy: -2, radius: 8 }];
+        } else {
+          isGameOver = true;
+        }
+      }
+
+      if (!isGameOver) {
+        requestAnimationFrame(draw);
+      } else {
+        showGameOver();
+      }
+    }
+
+    function showGameOver() {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#fff";
+      ctx.font = "30px Arial";
+      ctx.fillText("Game Over", 320, 300);
+      ctx.fillText(`Pontuação: ${score}`, 320, 340);
+    }
+
+    document.addEventListener('mousemove', e => {
+      let rect = canvas.getBoundingClientRect();
+      paddle.x = e.clientX - rect.left - paddle.width / 2;
+    });
+
+    document.addEventListener('touchmove', e => {
+      let rect = canvas.getBoundingClientRect();
+      paddle.x = e.touches[0].clientX - rect.left - paddle.width / 2;
+    });
+  </script>
 </body>
 </html>
