@@ -13,28 +13,57 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
     }
     canvas {
       background: #222;
       display: block;
       margin-top: 10px;
       border: 2px solid #fff;
+      touch-action: none;
     }
     #info {
       margin-top: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      font-weight: 600;
     }
     #startScreen {
       display: flex;
       flex-direction: column;
       align-items: center;
       margin-top: 50px;
+      position: relative;
+      width: 300px;
     }
     #startScreen input {
       padding: 10px;
       margin-bottom: 10px;
+      font-size: 16px;
+      width: 100%;
+      text-align: center;
+      border-radius: 5px;
+      border: none;
+      outline: none;
+    }
+    #startScreen button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 5px;
+      border: none;
+      background: #00f0ff;
+      color: #111;
+      font-weight: 700;
+      transition: background-color 0.3s ease;
+    }
+    #startScreen button:hover {
+      background: #0099cc;
     }
     #arrow {
       position: absolute;
@@ -42,11 +71,18 @@
       height: 40px;
       border: solid white;
       border-width: 0 5px 5px 0;
-      transform: rotate(-45deg);
-      top: 200px;
+      top: 130px;
       left: 50%;
       margin-left: -20px;
+      transform-origin: 100% 100%;
+      cursor: grab;
       animation: bounce 1s infinite;
+      user-select: none;
+      touch-action: none;
+      z-index: 10;
+    }
+    #arrow:active {
+      cursor: grabbing;
     }
     @keyframes bounce {
       0%, 100% { transform: rotate(-45deg) translateY(0); }
@@ -57,10 +93,11 @@
 <body>
   <div id="startScreen">
     <input type="text" id="playerName" placeholder="Digite seu nome ou ID" />
-    <button onclick="startGame()">Começar Jogo</button>
-    <div id="arrow"></div>
+    <button id="startBtn">Começar Jogo</button>
+    <div id="arrow" title="Arraste para ajustar a direção da bolinha"></div>
   </div>
-  <canvas id="gameCanvas" width="800" height="600" style="display: none;"></canvas>
+
+  <canvas id="gameCanvas" width="800" height="600" style="display:none;"></canvas>
   <div id="info"></div>
 
   <script>
@@ -69,6 +106,7 @@
     const info = document.getElementById("info");
     const startScreen = document.getElementById("startScreen");
     const arrow = document.getElementById("arrow");
+    const startBtn = document.getElementById("startBtn");
 
     let playerName = "";
     let ballSpeed = 4;
@@ -86,6 +124,10 @@
       height: 10,
       dx: 6
     };
+
+    // Set initial arrow angle (degrees)
+    let arrowAngle = -45;
+    let draggingArrow = false;
 
     function createBricks(rows, cols) {
       bricks = [];
@@ -132,20 +174,29 @@
         ball.x += ball.dx;
         ball.y += ball.dy;
 
-        // Parede
+        // Colisão com paredes laterais
         if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx *= -1;
+        // Colisão com teto
         if (ball.y - ball.radius < 0) ball.dy *= -1;
 
-        // Paddle
+        // Colisão com paddle
         if (
           ball.y + ball.radius > paddle.y &&
           ball.x > paddle.x &&
           ball.x < paddle.x + paddle.width
         ) {
           ball.dy *= -1;
+          // Ajuste de direção baseado onde bateu na raquete
+          const hitPos = ball.x - paddle.x;
+          const center = paddle.width / 2;
+          const offset = (hitPos - center) / center; // -1 a 1
+          const angle = offset * (Math.PI / 3); // max 60 graus
+          const speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+          ball.dx = speed * Math.sin(angle);
+          ball.dy = -speed * Math.cos(angle);
         }
 
-        // Fora da tela
+        // Bolinha caiu
         if (ball.y - ball.radius > canvas.height) {
           balls.splice(index, 1);
           if (balls.length === 0) {
@@ -155,7 +206,7 @@
           }
         }
 
-        // Tijolos
+        // Colisão com tijolos
         bricks.forEach(brick => {
           if (!brick.destroyed &&
               ball.x > brick.x && ball.x < brick.x + brick.width &&
@@ -163,10 +214,22 @@
           ) {
             ball.dy *= -1;
             brick.hits++;
-            score += 10;
+
+            // Cada hit soma 5 pontos
+            score += 5;
+
+            // Quando atinge 3 hits, destrói o tijolo, soma 15 pontos bônus e multiplica a bolinha
             if (brick.hits === 3) {
               brick.destroyed = true;
-              balls.push({ ...ball });
+              score += 15;
+
+              balls.push({
+                x: ball.x,
+                y: ball.y,
+                radius: ball.radius,
+                dx: -ball.dx,
+                dy: ball.dy
+              });
             }
           }
         });
@@ -174,8 +237,8 @@
     }
 
     function drawInfo() {
-      const timeElapsed = ((Date.now() - timeStart) / 1000).toFixed(1);
-      info.innerHTML = `Jogador: ${playerName} | Pontos: ${score} | Vidas: ${lives} | Tempo: ${timeElapsed}s | Fase: ${phase}`;
+      const timeElapsed = timeStart ? ((Date.now() - timeStart) / 1000).toFixed(1) : "0.0";
+      info.textContent = `Jogador: ${playerName} | Pontos: ${score} | Vidas: ${lives} | Tempo: ${timeElapsed}s | Fase: ${phase}`;
     }
 
     function draw() {
@@ -185,15 +248,27 @@
       drawBalls();
       drawInfo();
       updateBalls();
-      requestAnimationFrame(draw);
 
-      if (bricks.every(b => b.destroyed) || (phase === 1 && score >= 300) || (phase === 2 && score >= 600)) {
+      // Avança de fase ao destruir todos tijolos ou atingir pontuação
+      if (bricks.every(b => b.destroyed) || 
+          (phase === 1 && score >= 300) || 
+          (phase === 2 && score >= 600)) {
         nextPhase();
       }
+
+      requestAnimationFrame(draw);
     }
 
     function resetBall() {
-      balls = [{ x: canvas.width / 2, y: 300, radius: 7, dx: ballSpeed, dy: -ballSpeed }];
+      const rad = arrowAngle * Math.PI / 180;
+      balls = [{
+        x: canvas.width / 2,
+        y: 300,
+        radius: 7,
+        dx: ballSpeed * Math.cos(rad),
+        dy: ballSpeed * Math.sin(rad)
+      }];
+      showArrow(false);
     }
 
     function resetGame() {
@@ -204,28 +279,91 @@
       createBricks(3, 7);
       resetBall();
       timeStart = Date.now();
+      showArrow(true);
     }
 
     function nextPhase() {
       phase++;
-      if (phase > 3) return;
+      if (phase > 3) {
+        alert("Parabéns! Você completou todas as fases!");
+        resetGame();
+        return;
+      }
       ballSpeed += 1;
       createBricks(phase + 2, 6 + phase);
       resetBall();
     }
 
+    // Controle do paddle pelo teclado
     function movePaddle(e) {
       const key = e.key;
-      if (key === "ArrowLeft") paddle.x -= paddle.dx;
-      else if (key === "ArrowRight") paddle.x += paddle.dx;
+      if (key === "ArrowLeft") {
+        paddle.x -= paddle.dx;
+        if (paddle.x < 0) paddle.x = 0;
+      } else if (key === "ArrowRight") {
+        paddle.x += paddle.dx;
+        if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
+      }
     }
 
+    // Controle do paddle por touch/mouse move
     function movePaddleTouch(evt) {
-      const touchX = evt.touches[0].clientX;
-      const canvasRect = canvas.getBoundingClientRect();
-      paddle.x = touchX - canvasRect.left - paddle.width / 2;
+      const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+      const rect = canvas.getBoundingClientRect();
+      paddle.x = clientX - rect.left - paddle.width / 2;
+      if (paddle.x < 0) paddle.x = 0;
+      if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
     }
 
+    // Função para atualizar a rotação da seta
+    function updateArrowRotation() {
+      arrow.style.transform = `rotate(${arrowAngle}deg)`;
+    }
+
+    // Calcula o ângulo da seta com base na posição do mouse/touch
+    function calculateAngleFromPointer(clientX, clientY) {
+      const rect = arrow.getBoundingClientRect();
+      const centerX = rect.left + rect.width;
+      const centerY = rect.top + rect.height;
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      let angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+      if (angleDeg < -80) angleDeg = -80;
+      if (angleDeg > 0) angleDeg = 0;
+      return angleDeg;
+    }
+
+    // Eventos para arrastar a seta e definir o ângulo inicial da bolinha
+    arrow.addEventListener("mousedown", e => {
+      e.preventDefault();
+      draggingArrow = true;
+    });
+    window.addEventListener("mouseup", e => {
+      if (draggingArrow) draggingArrow = false;
+    });
+    window.addEventListener("mousemove", e => {
+      if (!draggingArrow) return;
+      e.preventDefault();
+      arrowAngle = calculateAngleFromPointer(e.clientX, e.clientY);
+      updateArrowRotation();
+    });
+
+    arrow.addEventListener("touchstart", e => {
+      e.preventDefault();
+      draggingArrow = true;
+    });
+    window.addEventListener("touchend", e => {
+      draggingArrow = false;
+    });
+    window.addEventListener("touchmove", e => {
+      if (!draggingArrow) return;
+      e.preventDefault();
+      const touch = event.touches[0];
+      arrowAngle = calculateAngleFromPointer(touch.clientX, touch.clientY);
+      updateArrowRotation();
+    });
+
+    // Inicia o jogo
     function startGame() {
       playerName = document.getElementById("playerName").value.trim() || "Jogador";
       startScreen.style.display = "none";
@@ -234,8 +372,23 @@
       draw();
     }
 
+    startBtn.addEventListener("click", startGame);
+
+    // Mostrar ou esconder a seta de direção
+    function showArrow(show) {
+      arrow.style.display = show ? "block" : "none";
+    }
+
+    // Controle paddle via teclado
     document.addEventListener("keydown", movePaddle);
+    // Controle paddle via touch e mouse move no canvas
     canvas.addEventListener("touchmove", movePaddleTouch);
+    canvas.addEventListener("mousemove", evt => {
+      if (evt.buttons === 1) movePaddleTouch(evt); // só se botão do mouse pressionado
+    });
+
+    // Inicializa a rotação da seta
+    updateArrowRotation();
   </script>
 </body>
 </html>
