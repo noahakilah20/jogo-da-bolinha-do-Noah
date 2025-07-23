@@ -2,393 +2,258 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Jogo da Bolinha do Noah</title>
+  <title>Jogo da Aninha 💖</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: sans-serif;
       background-color: #111;
-      color: white;
       display: flex;
-      flex-direction: column;
+      justify-content: center;
       align-items: center;
-      user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
       height: 100vh;
       overflow: hidden;
-      position: relative;
     }
     canvas {
-      background: #222;
-      display: block;
-      margin-top: 10px;
-      border: 2px solid #fff;
-      touch-action: none;
-    }
-    #info {
-      margin-top: 10px;
-      font-weight: 600;
-    }
-    #startScreen {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-top: 50px;
-      position: relative;
-      width: 300px;
-    }
-    #startScreen input {
-      padding: 10px;
-      margin-bottom: 10px;
-      font-size: 16px;
-      width: 100%;
-      text-align: center;
-      border-radius: 5px;
-      border: none;
-      outline: none;
-    }
-    #startScreen button {
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-      user-select: none;
-      border-radius: 5px;
-      border: none;
-      background: #00f0ff;
-      color: #111;
-      font-weight: 700;
-      transition: background-color 0.3s ease;
-    }
-    #startScreen button:hover {
-      background: #0099cc;
-    }
-    #arrow {
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      border: solid white;
-      border-width: 0 5px 5px 0;
-      top: 130px;
-      left: 50%;
-      margin-left: -20px;
-      transform-origin: 100% 100%;
-      cursor: grab;
-      animation: bounce 1s infinite;
-      user-select: none;
-      touch-action: none;
-      z-index: 10;
-    }
-    #arrow:active {
-      cursor: grabbing;
-    }
-    @keyframes bounce {
-      0%, 100% { transform: rotate(-45deg) translateY(0); }
-      50% { transform: rotate(-45deg) translateY(-10px); }
+      background-color: #222;
+      border: 3px solid #f0f;
+      border-radius: 10px;
     }
   </style>
 </head>
 <body>
-  <div id="startScreen">
-    <input type="text" id="playerName" placeholder="Digite seu nome ou ID" />
-    <button id="startBtn">Começar Jogo</button>
-    <div id="arrow" title="Arraste para ajustar a direção da bolinha"></div>
-  </div>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-  <canvas id="gameCanvas" width="800" height="600" style="display:none;"></canvas>
-  <div id="info"></div>
+let paddle = {
+  x: canvas.width / 2 - 40,
+  y: canvas.height - 20,
+  width: 80,
+  height: 10
+};
 
-  <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const info = document.getElementById("info");
-    const startScreen = document.getElementById("startScreen");
-    const arrow = document.getElementById("arrow");
-    const startBtn = document.getElementById("startBtn");
+let balls = [{
+  x: canvas.width / 2,
+  y: canvas.height - 30,
+  radius: 7,
+  dx: 3,
+  dy: -3
+}];
 
-    let playerName = "";
-    let ballSpeed = 4;
-    let score = 0;
-    let lives = 3;
-    let bricks = [];
-    let balls = [];
-    let phase = 1;
-    let timeStart = null;
+let bricks = [];
+let rows = 5;
+let cols = 6;
+let brickWidth = 60;
+let brickHeight = 20;
+let score = 0;
+let lives = 3;
+let gameStarted = false;
+let showArrow = true;
+let gameOver = false;
 
-    const paddle = {
-      x: canvas.width / 2 - 50,
-      y: canvas.height - 20,
-      width: 100,
-      height: 10,
-      dx: 6
-    };
+function createBricks() {
+  bricks = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      bricks.push({
+        x: c * (brickWidth + 5) + 20,
+        y: r * (brickHeight + 5) + 40,
+        width: brickWidth,
+        height: brickHeight,
+        hits: 0,
+        destroyed: false
+      });
+    }
+  }
+}
 
-    // Set initial arrow angle (degrees)
-    let arrowAngle = -45;
-    let draggingArrow = false;
+createBricks();
 
-    function createBricks(rows, cols) {
-      bricks = [];
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          bricks.push({
-            x: c * 75 + 35,
-            y: r * 30 + 40,
-            width: 70,
-            height: 20,
-            hits: 0,
-            destroyed: false
+function drawPaddle() {
+  ctx.fillStyle = "#0f0";
+  ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+}
+
+function drawBall(ball) {
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fillStyle = "#0ff";
+  ctx.fill();
+  ctx.closePath();
+}
+
+function drawBricks() {
+  bricks.forEach(brick => {
+    if (!brick.destroyed) {
+      ctx.fillStyle = ["#f00", "#ff0", "#0ff"][brick.hits % 3];
+      ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+    }
+  });
+}
+
+function drawScore() {
+  ctx.fillStyle = "#fff";
+  ctx.font = "16px Arial";
+  ctx.fillText("Pontos: " + score, 10, 20);
+}
+
+function drawLives() {
+  ctx.fillStyle = "#fff";
+  ctx.font = "16px Arial";
+  ctx.fillText("Vidas: " + lives, canvas.width - 80, 20);
+}
+
+function drawArrow() {
+  if (showArrow) {
+    ctx.beginPath();
+    ctx.moveTo(paddle.x + paddle.width / 2, paddle.y - 10);
+    ctx.lineTo(paddle.x + paddle.width / 2 - 10, paddle.y - 30);
+    ctx.lineTo(paddle.x + paddle.width / 2 + 10, paddle.y - 30);
+    ctx.closePath();
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+  }
+}
+
+function drawGameOver() {
+  ctx.fillStyle = "red";
+  ctx.font = "30px Arial";
+  ctx.fillText("Game Over", 100, canvas.height / 2);
+}
+
+function resetGame() {
+  balls = [{
+    x: canvas.width / 2,
+    y: canvas.height - 30,
+    radius: 7,
+    dx: 3,
+    dy: -3
+  }];
+  lives = 3;
+  score = 0;
+  gameOver = false;
+  createBricks();
+}
+
+function updateGame() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawPaddle();
+  drawBricks();
+  drawScore();
+  drawLives();
+  drawArrow();
+
+  if (gameOver) {
+    drawGameOver();
+    setTimeout(() => {
+      resetGame();
+    }, 3000);
+    return;
+  }
+
+  balls.forEach((ball, index) => {
+    if (!gameStarted) {
+      ball.x = paddle.x + paddle.width / 2;
+      ball.y = paddle.y - ball.radius;
+      return;
+    }
+
+    ball.x += ball.dx;
+    ball.y += ball.dy;
+
+    if (ball.x < ball.radius || ball.x > canvas.width - ball.radius) ball.dx *= -1;
+    if (ball.y < ball.radius) ball.dy *= -1;
+
+    if (ball.y > canvas.height) {
+      balls.splice(index, 1);
+      if (balls.length === 0) {
+        lives--;
+        gameStarted = false;
+        showArrow = true;
+        if (lives <= 0) {
+          gameOver = true;
+        } else {
+          balls.push({
+            x: canvas.width / 2,
+            y: canvas.height - 30,
+            radius: 7,
+            dx: 3,
+            dy: -3
           });
         }
       }
     }
 
-    function drawBricks() {
-      bricks.forEach(b => {
-        if (!b.destroyed) {
-          ctx.fillStyle = ["#FF595E", "#FFCA3A", "#8AC926"][b.hits % 3];
-          ctx.fillRect(b.x, b.y, b.width, b.height);
+    // Colisão com paddle
+    if (
+      ball.y + ball.radius > paddle.y &&
+      ball.x > paddle.x && ball.x < paddle.x + paddle.width
+    ) {
+      ball.dy *= -1;
+    }
+
+    // Colisão com tijolos
+    bricks.forEach(brick => {
+      if (!brick.destroyed &&
+          ball.x > brick.x && ball.x < brick.x + brick.width &&
+          ball.y > brick.y && ball.y < brick.y + brick.height
+      ) {
+        ball.dy *= -1;
+        brick.hits++;
+
+        // +5 pontos por hit
+        score += 5;
+
+        if (brick.hits === 3) {
+          brick.destroyed = true;
+          score += 15; // bônus
+          balls.push({
+            x: ball.x,
+            y: ball.y,
+            radius: ball.radius,
+            dx: -ball.dx,
+            dy: ball.dy
+          });
         }
-      });
-    }
-
-    function drawPaddle() {
-      ctx.fillStyle = "white";
-      ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-    }
-
-    function drawBalls() {
-      balls.forEach(ball => {
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#00f0ff";
-        ctx.fill();
-        ctx.closePath();
-      });
-    }
-
-    function updateBalls() {
-      balls.forEach((ball, index) => {
-        ball.x += ball.dx;
-        ball.y += ball.dy;
-
-        // Colisão com paredes laterais
-        if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx *= -1;
-        // Colisão com teto
-        if (ball.y - ball.radius < 0) ball.dy *= -1;
-
-        // Colisão com paddle
-        if (
-          ball.y + ball.radius > paddle.y &&
-          ball.x > paddle.x &&
-          ball.x < paddle.x + paddle.width
-        ) {
-          ball.dy *= -1;
-          // Ajuste de direção baseado onde bateu na raquete
-          const hitPos = ball.x - paddle.x;
-          const center = paddle.width / 2;
-          const offset = (hitPos - center) / center; // -1 a 1
-          const angle = offset * (Math.PI / 3); // max 60 graus
-          const speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-          ball.dx = speed * Math.sin(angle);
-          ball.dy = -speed * Math.cos(angle);
-        }
-
-        // Bolinha caiu
-        if (ball.y - ball.radius > canvas.height) {
-          balls.splice(index, 1);
-          if (balls.length === 0) {
-            lives--;
-            if (lives > 0) resetBall();
-            else resetGame();
-          }
-        }
-
-        // Colisão com tijolos
-        bricks.forEach(brick => {
-          if (!brick.destroyed &&
-              ball.x > brick.x && ball.x < brick.x + brick.width &&
-              ball.y > brick.y && ball.y < brick.y + brick.height
-          ) {
-            ball.dy *= -1;
-            brick.hits++;
-
-            // Cada hit soma 5 pontos
-            score += 5;
-
-            // Quando atinge 3 hits, destrói o tijolo, soma 15 pontos bônus e multiplica a bolinha
-            if (brick.hits === 3) {
-              brick.destroyed = true;
-              score += 15;
-
-              balls.push({
-                x: ball.x,
-                y: ball.y,
-                radius: ball.radius,
-                dx: -ball.dx,
-                dy: ball.dy
-              });
-            }
-          }
-        });
-      });
-    }
-
-    function drawInfo() {
-      const timeElapsed = timeStart ? ((Date.now() - timeStart) / 1000).toFixed(1) : "0.0";
-      info.textContent = `Jogador: ${playerName} | Pontos: ${score} | Vidas: ${lives} | Tempo: ${timeElapsed}s | Fase: ${phase}`;
-    }
-
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawPaddle();
-      drawBricks();
-      drawBalls();
-      drawInfo();
-      updateBalls();
-
-      // Avança de fase ao destruir todos tijolos ou atingir pontuação
-      if (bricks.every(b => b.destroyed) || 
-          (phase === 1 && score >= 300) || 
-          (phase === 2 && score >= 600)) {
-        nextPhase();
       }
-
-      requestAnimationFrame(draw);
-    }
-
-    function resetBall() {
-      const rad = arrowAngle * Math.PI / 180;
-      balls = [{
-        x: canvas.width / 2,
-        y: 300,
-        radius: 7,
-        dx: ballSpeed * Math.cos(rad),
-        dy: ballSpeed * Math.sin(rad)
-      }];
-      showArrow(false);
-    }
-
-    function resetGame() {
-      phase = 1;
-      score = 0;
-      lives = 3;
-      ballSpeed = 4;
-      createBricks(3, 7);
-      resetBall();
-      timeStart = Date.now();
-      showArrow(true);
-    }
-
-    function nextPhase() {
-      phase++;
-      if (phase > 3) {
-        alert("Parabéns! Você completou todas as fases!");
-        resetGame();
-        return;
-      }
-      ballSpeed += 1;
-      createBricks(phase + 2, 6 + phase);
-      resetBall();
-    }
-
-    // Controle do paddle pelo teclado
-    function movePaddle(e) {
-      const key = e.key;
-      if (key === "ArrowLeft") {
-        paddle.x -= paddle.dx;
-        if (paddle.x < 0) paddle.x = 0;
-      } else if (key === "ArrowRight") {
-        paddle.x += paddle.dx;
-        if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
-      }
-    }
-
-    // Controle do paddle por touch/mouse move
-    function movePaddleTouch(evt) {
-      const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
-      const rect = canvas.getBoundingClientRect();
-      paddle.x = clientX - rect.left - paddle.width / 2;
-      if (paddle.x < 0) paddle.x = 0;
-      if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
-    }
-
-    // Função para atualizar a rotação da seta
-    function updateArrowRotation() {
-      arrow.style.transform = `rotate(${arrowAngle}deg)`;
-    }
-
-    // Calcula o ângulo da seta com base na posição do mouse/touch
-    function calculateAngleFromPointer(clientX, clientY) {
-      const rect = arrow.getBoundingClientRect();
-      const centerX = rect.left + rect.width;
-      const centerY = rect.top + rect.height;
-      const dx = clientX - centerX;
-      const dy = clientY - centerY;
-      let angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
-      if (angleDeg < -80) angleDeg = -80;
-      if (angleDeg > 0) angleDeg = 0;
-      return angleDeg;
-    }
-
-    // Eventos para arrastar a seta e definir o ângulo inicial da bolinha
-    arrow.addEventListener("mousedown", e => {
-      e.preventDefault();
-      draggingArrow = true;
-    });
-    window.addEventListener("mouseup", e => {
-      if (draggingArrow) draggingArrow = false;
-    });
-    window.addEventListener("mousemove", e => {
-      if (!draggingArrow) return;
-      e.preventDefault();
-      arrowAngle = calculateAngleFromPointer(e.clientX, e.clientY);
-      updateArrowRotation();
     });
 
-    arrow.addEventListener("touchstart", e => {
-      e.preventDefault();
-      draggingArrow = true;
-    });
-    window.addEventListener("touchend", e => {
-      draggingArrow = false;
-    });
-    window.addEventListener("touchmove", e => {
-      if (!draggingArrow) return;
-      e.preventDefault();
-      const touch = event.touches[0];
-      arrowAngle = calculateAngleFromPointer(touch.clientX, touch.clientY);
-      updateArrowRotation();
-    });
+    drawBall(ball);
+  });
 
-    // Inicia o jogo
-    function startGame() {
-      playerName = document.getElementById("playerName").value.trim() || "Jogador";
-      startScreen.style.display = "none";
-      canvas.style.display = "block";
-      resetGame();
-      draw();
-    }
+  requestAnimationFrame(updateGame);
+}
 
-    startBtn.addEventListener("click", startGame);
+document.addEventListener("mousemove", e => {
+  let rect = canvas.getBoundingClientRect();
+  let mouseX = e.clientX - rect.left;
+  paddle.x = mouseX - paddle.width / 2;
+});
 
-    // Mostrar ou esconder a seta de direção
-    function showArrow(show) {
-      arrow.style.display = show ? "block" : "none";
-    }
+document.addEventListener("touchmove", e => {
+  let touch = e.touches[0];
+  let rect = canvas.getBoundingClientRect();
+  let touchX = touch.clientX - rect.left;
+  paddle.x = touchX - paddle.width / 2;
+});
 
-    // Controle paddle via teclado
-    document.addEventListener("keydown", movePaddle);
-    // Controle paddle via touch e mouse move no canvas
-    canvas.addEventListener("touchmove", movePaddleTouch);
-    canvas.addEventListener("mousemove", evt => {
-      if (evt.buttons === 1) movePaddleTouch(evt); // só se botão do mouse pressionado
-    });
+document.addEventListener("click", () => {
+  if (!gameStarted && !gameOver) {
+    gameStarted = true;
+    showArrow = false;
+  }
+});
 
-    // Inicializa a rotação da seta
-    updateArrowRotation();
-  </script>
+document.addEventListener("touchstart", () => {
+  if (!gameStarted && !gameOver) {
+    gameStarted = true;
+    showArrow = false;
+  }
+});
+
+updateGame();
+</script>
 </body>
 </html>
