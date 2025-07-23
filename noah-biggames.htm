@@ -2,9 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Jogo da Aninha 💖</title>
+  <title>Jogo da Aninha - Arkanoid 💖</title>
   <style>
-    * { box-sizing: border-box; }
     body {
       margin: 0;
       background-color: #111;
@@ -16,8 +15,7 @@
     }
     canvas {
       background-color: #222;
-      border: 3px solid #f0f;
-      border-radius: 10px;
+      border: 2px solid #fff;
     }
   </style>
 </head>
@@ -27,59 +25,65 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let paddle = {
-  x: canvas.width / 2 - 40,
-  y: canvas.height - 20,
-  width: 80,
-  height: 10
-};
-
-let balls = [{
-  x: canvas.width / 2,
-  y: canvas.height - 30,
-  radius: 7,
-  dx: 3,
-  dy: -3
-}];
-
-let bricks = [];
-let rows = 5;
-let cols = 6;
-let brickWidth = 60;
-let brickHeight = 20;
+let faseAtual = 1;
 let score = 0;
 let lives = 3;
 let gameStarted = false;
-let showArrow = true;
-let gameOver = false;
 
+const arrowImg = new Image();
+arrowImg.src = "data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='white' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 12l1.41 1.41L11 7.83v12.34h2V7.83l5.59 5.58L20 12l-8-8-8 8z'/%3E%3C/svg%3E";
+
+const paddle = {
+  x: canvas.width / 2 - 40,
+  y: canvas.height - 30,
+  width: 80,
+  height: 10,
+  dx: 0
+};
+
+let balls = [createBall(2)];
+
+function createBall(speed) {
+  return {
+    x: canvas.width / 2,
+    y: paddle.y - 10,
+    radius: 6,
+    dx: speed,
+    dy: -speed
+  };
+}
+
+let bricks = [];
 function createBricks() {
   bricks = [];
+  const rows = faseAtual + 2;
+  const cols = 8;
+  const width = 40;
+  const height = 15;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       bricks.push({
-        x: c * (brickWidth + 5) + 20,
-        y: r * (brickHeight + 5) + 40,
-        width: brickWidth,
-        height: brickHeight,
+        x: c * (width + 5) + 10,
+        y: r * (height + 5) + 40,
+        width,
+        height,
         hits: 0,
         destroyed: false
       });
     }
   }
 }
-
 createBricks();
 
 function drawPaddle() {
-  ctx.fillStyle = "#0f0";
+  ctx.fillStyle = "#0ff";
   ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
 }
 
 function drawBall(ball) {
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-  ctx.fillStyle = "#0ff";
+  ctx.fillStyle = "#fff";
   ctx.fill();
   ctx.closePath();
 }
@@ -87,7 +91,7 @@ function drawBall(ball) {
 function drawBricks() {
   bricks.forEach(brick => {
     if (!brick.destroyed) {
-      ctx.fillStyle = ["#f00", "#ff0", "#0ff"][brick.hits % 3];
+      ctx.fillStyle = `rgb(${100 + brick.hits * 50}, 0, 200)`;
       ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
     }
   });
@@ -97,96 +101,27 @@ function drawScore() {
   ctx.fillStyle = "#fff";
   ctx.font = "16px Arial";
   ctx.fillText("Pontos: " + score, 10, 20);
-}
-
-function drawLives() {
-  ctx.fillStyle = "#fff";
-  ctx.font = "16px Arial";
-  ctx.fillText("Vidas: " + lives, canvas.width - 80, 20);
+  ctx.fillText("Vidas: " + lives, 320, 20);
+  ctx.fillText("Fase: " + faseAtual, 170, 20);
 }
 
 function drawArrow() {
-  if (showArrow) {
-    ctx.beginPath();
-    ctx.moveTo(paddle.x + paddle.width / 2, paddle.y - 10);
-    ctx.lineTo(paddle.x + paddle.width / 2 - 10, paddle.y - 30);
-    ctx.lineTo(paddle.x + paddle.width / 2 + 10, paddle.y - 30);
-    ctx.closePath();
-    ctx.fillStyle = "#fff";
-    ctx.fill();
-  }
-}
-
-function drawGameOver() {
-  ctx.fillStyle = "red";
-  ctx.font = "30px Arial";
-  ctx.fillText("Game Over", 100, canvas.height / 2);
-}
-
-function resetGame() {
-  balls = [{
-    x: canvas.width / 2,
-    y: canvas.height - 30,
-    radius: 7,
-    dx: 3,
-    dy: -3
-  }];
-  lives = 3;
-  score = 0;
-  gameOver = false;
-  createBricks();
+  ctx.drawImage(arrowImg, paddle.x + paddle.width / 2 - 12, paddle.y - 40, 24, 24);
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px Arial";
+  ctx.fillText("Toque para começar", 120, paddle.y - 10);
 }
 
 function updateGame() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawPaddle();
-  drawBricks();
-  drawScore();
-  drawLives();
-  drawArrow();
+  if (!gameStarted) return;
 
-  if (gameOver) {
-    drawGameOver();
-    setTimeout(() => {
-      resetGame();
-    }, 3000);
-    return;
-  }
-
-  balls.forEach((ball, index) => {
-    if (!gameStarted) {
-      ball.x = paddle.x + paddle.width / 2;
-      ball.y = paddle.y - ball.radius;
-      return;
-    }
-
+  balls.forEach(ball => {
     ball.x += ball.dx;
     ball.y += ball.dy;
 
     if (ball.x < ball.radius || ball.x > canvas.width - ball.radius) ball.dx *= -1;
     if (ball.y < ball.radius) ball.dy *= -1;
 
-    if (ball.y > canvas.height) {
-      balls.splice(index, 1);
-      if (balls.length === 0) {
-        lives--;
-        gameStarted = false;
-        showArrow = true;
-        if (lives <= 0) {
-          gameOver = true;
-        } else {
-          balls.push({
-            x: canvas.width / 2,
-            y: canvas.height - 30,
-            radius: 7,
-            dx: 3,
-            dy: -3
-          });
-        }
-      }
-    }
-
-    // Colisão com paddle
     if (
       ball.y + ball.radius > paddle.y &&
       ball.x > paddle.x && ball.x < paddle.x + paddle.width
@@ -194,66 +129,107 @@ function updateGame() {
       ball.dy *= -1;
     }
 
-    // Colisão com tijolos
     bricks.forEach(brick => {
       if (!brick.destroyed &&
-          ball.x > brick.x && ball.x < brick.x + brick.width &&
-          ball.y > brick.y && ball.y < brick.y + brick.height
-      ) {
+        ball.x > brick.x && ball.x < brick.x + brick.width &&
+        ball.y > brick.y && ball.y < brick.y + brick.height) {
+
         ball.dy *= -1;
         brick.hits++;
-
-        // +5 pontos por hit
         score += 5;
 
         if (brick.hits === 3) {
           brick.destroyed = true;
-          score += 15; // bônus
-          balls.push({
-            x: ball.x,
-            y: ball.y,
-            radius: ball.radius,
-            dx: -ball.dx,
-            dy: ball.dy
-          });
+          score += 15;
+          balls.push(createBall(getSpeedByFase()));
         }
       }
     });
 
-    drawBall(ball);
+    if (ball.y > canvas.height) {
+      balls = balls.filter(b => b !== ball);
+      if (balls.length === 0) {
+        lives--;
+        if (lives > 0) {
+          balls.push(createBall(getSpeedByFase()));
+        } else {
+          gameStarted = false;
+          score = 0;
+          lives = 3;
+          faseAtual = 1;
+          createBricks();
+          balls = [createBall(getSpeedByFase())];
+        }
+      }
+    }
   });
 
-  requestAnimationFrame(updateGame);
+  // Avança de fase por pontuação
+  if (score >= 300 && faseAtual === 1) {
+    faseAtual = 2;
+    adjustGameToFase();
+  } else if (score >= 600 && faseAtual === 2) {
+    faseAtual = 3;
+    adjustGameToFase();
+  }
 }
 
-document.addEventListener("mousemove", e => {
-  let rect = canvas.getBoundingClientRect();
-  let mouseX = e.clientX - rect.left;
-  paddle.x = mouseX - paddle.width / 2;
+function adjustGameToFase() {
+  createBricks();
+  balls.forEach(ball => {
+    let speed = getSpeedByFase();
+    ball.dx = Math.sign(ball.dx) * speed;
+    ball.dy = Math.sign(ball.dy) * speed;
+  });
+}
+
+function getSpeedByFase() {
+  if (faseAtual === 1) return 2;
+  if (faseAtual === 2) return 3.5;
+  return 5;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBricks();
+  drawPaddle();
+  balls.forEach(drawBall);
+  drawScore();
+  if (!gameStarted) drawArrow();
+}
+
+function gameLoop() {
+  updateGame();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+
+// Movimento fluido
+canvas.addEventListener("mousemove", e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  paddle.x = x - paddle.width / 2;
 });
 
-document.addEventListener("touchmove", e => {
-  let touch = e.touches[0];
-  let rect = canvas.getBoundingClientRect();
-  let touchX = touch.clientX - rect.left;
-  paddle.x = touchX - paddle.width / 2;
-});
+canvas.addEventListener("touchmove", e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.touches[0].clientX - rect.left;
+  paddle.x = x - paddle.width / 2;
+  e.preventDefault();
+}, { passive: false });
 
-document.addEventListener("click", () => {
-  if (!gameStarted && !gameOver) {
+canvas.addEventListener("click", () => {
+  if (!gameStarted) {
     gameStarted = true;
-    showArrow = false;
   }
 });
-
-document.addEventListener("touchstart", () => {
-  if (!gameStarted && !gameOver) {
+canvas.addEventListener("touchstart", () => {
+  if (!gameStarted) {
     gameStarted = true;
-    showArrow = false;
   }
 });
-
-updateGame();
 </script>
 </body>
 </html>
