@@ -49,8 +49,8 @@
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    let balls = [], bricks = [], score = 0, lives = 3, level = 1, player = "";
-    let paddle, isGameOver = false;
+    let balls = [], bricks = [], score = 0, lives = 3, level = 1, player = "", timer = 0;
+    let paddle, isGameOver = false, isGameWinner = false;
 
     function startGame() {
       player = document.getElementById('playerName').value || "Jogador";
@@ -59,12 +59,13 @@
     }
 
     function initGame() {
-      balls = [{ x: 400, y: 300, dx: 2, dy: -2, radius: 8 }];
+      balls = [{ x: 400, y: 300, dx: 4, dy: -4, radius: 8 }];
       paddle = { x: 350, y: 580, width: 100, height: 10 };
       score = 0;
-      lives = 3;
       level = 1;
       isGameOver = false;
+      isGameWinner = false;
+      timer = 0;
       generateBricks();
       requestAnimationFrame(draw);
     }
@@ -80,6 +81,7 @@
             y: 50 + r * 30,
             width: 60,
             height: 20,
+            hits: 0,
             destroyed: false
           });
         }
@@ -89,7 +91,7 @@
     function drawBricks() {
       for (let b of bricks) {
         if (!b.destroyed) {
-          ctx.fillStyle = "#0ff";
+          ctx.fillStyle = ["#0ff", "#0cc", "#099"][b.hits] || "#066";
           ctx.fillRect(b.x, b.y, b.width, b.height);
         }
       }
@@ -111,24 +113,24 @@
 
     function drawHUD() {
       ctx.fillStyle = "#fff";
+      ctx.font = "16px Arial";
       ctx.fillText(`Nome: ${player}`, 10, 20);
       ctx.fillText(`Score: ${score}`, 10, 40);
       ctx.fillText(`Vidas: ${lives}`, 10, 60);
       ctx.fillText(`Fase: ${level}`, 10, 80);
+      ctx.fillText(`Tempo: ${Math.floor(timer / 60)}s`, 10, 100);
     }
 
     function collisionDetection() {
       for (let ball of balls) {
         for (let b of bricks) {
           if (!b.destroyed &&
-            ball.x > b.x && ball.x < b.x + b.width &&
-            ball.y > b.y && ball.y < b.y + b.height) {
-              ball.dy = -ball.dy;
-              b.destroyed = true;
-              score += 10;
-              if (Math.random() < 0.2) {
-                balls.push({ x: ball.x, y: ball.y, dx: -ball.dx, dy: ball.dy, radius: 8 });
-              }
+              ball.x > b.x && ball.x < b.x + b.width &&
+              ball.y > b.y && ball.y < b.y + b.height) {
+            ball.dy = -ball.dy;
+            b.hits++;
+            score += 5;
+            if (b.hits >= 3) b.destroyed = true;
           }
         }
       }
@@ -141,10 +143,11 @@
       drawBalls();
       drawHUD();
       collisionDetection();
+      timer++;
 
       for (let ball of balls) {
-        ball.x += ball.dx * (1 + level * 0.3);
-        ball.y += ball.dy * (1 + level * 0.3);
+        ball.x += ball.dx;
+        ball.y += ball.dy;
 
         if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx *= -1;
         if (ball.y - ball.radius < 0) ball.dy *= -1;
@@ -162,7 +165,7 @@
       if (balls.length === 0) {
         lives--;
         if (lives > 0) {
-          balls.push({ x: 400, y: 300, dx: 2, dy: -2, radius: 8 });
+          balls.push({ x: 400, y: 300, dx: 4, dy: -4, radius: 8 });
         } else {
           isGameOver = true;
         }
@@ -172,26 +175,27 @@
         level++;
         if (level <= 3) {
           generateBricks();
-          balls = [{ x: 400, y: 300, dx: 2, dy: -2, radius: 8 }];
+          balls = [{ x: 400, y: 300, dx: 4, dy: -4, radius: 8 }];
         } else {
-          isGameOver = true;
+          isGameWinner = true;
         }
       }
 
-      if (!isGameOver) {
+      if (!isGameOver && !isGameWinner) {
         requestAnimationFrame(draw);
       } else {
-        showGameOver();
+        showEndScreen();
       }
     }
 
-    function showGameOver() {
+    function showEndScreen() {
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#fff";
       ctx.font = "30px Arial";
-      ctx.fillText("Game Over", 320, 300);
-      ctx.fillText(`Pontuação: ${score}`, 320, 340);
+      const message = isGameWinner ? "Parabéns! Você Venceu!" : "Game Over";
+      ctx.fillText(message, 260, 300);
+      ctx.fillText(`Pontuação: ${score}`, 280, 340);
     }
 
     document.addEventListener('mousemove', e => {
